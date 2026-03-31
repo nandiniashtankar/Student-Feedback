@@ -46,3 +46,17 @@
 
 ## Test Locally First:
 Run `run_tests.bat` to verify everything works before Jenkins
+
+---
+
+## 🔔 Webhook Setup (Optional - Auto-trigger builds)
+
+Want Jenkins to run tests automatically when you push to GitHub?
+
+**See WEBHOOK_SETUP.md for complete guide!**
+
+Quick steps:
+1. Run `start_ngrok.bat` to create tunnel
+2. Copy ngrok URL from http://127.0.0.1:4040
+3. Add webhook in GitHub: `https://YOUR-URL.ngrok.io/github-webhook/`
+4. Push code → Jenkins builds automatically!

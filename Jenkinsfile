@@ -1,6 +1,10 @@
 pipeline {
     agent any
-    
+
+    environment {
+        REPO_DIR = "${WORKSPACE}"
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -8,65 +12,72 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         stage('Setup Python Environment') {
             steps {
                 echo 'Setting up Python environment...'
                 sh '''
-                    python -m pip install --upgrade pip
-                    pip install selenium
+                    python3 -m pip install --upgrade pip
+                    pip3 install selenium pytest pytest-html
                 '''
             }
         }
-        
-        stage('Install ChromeDriver') {
+
+        stage('Install Chrome & ChromeDriver') {
             steps {
-                echo 'Installing ChromeDriver...'
+                echo 'Installing Google Chrome...'
                 sh '''
-                    # Install Chrome and ChromeDriver
-                    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-                    echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list
-                    apt-get update
-                    apt-get install -y google-chrome-stable
-                    
-                    # ChromeDriver will be managed by Selenium Manager automatically
+                    if ! command -v google-chrome &> /dev/null; then
+                        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+                        echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+                        apt-get update -y
+                        apt-get install -y google-chrome-stable
+                    else
+                        echo "Chrome already installed: $(google-chrome --version)"
+                    fi
                 '''
             }
         }
-        
+
         stage('Run Selenium Tests') {
             steps {
-                echo 'Running Selenium tests...'
-                dir('student-feedback') {
-                    sh 'python -m pytest test/test_form.py -v --html=report.html --self-contained-html || true'
-                }
+                echo 'Running Selenium tests in headless mode...'
+                sh '''
+                    export DISPLAY=:99
+                    cd ${WORKSPACE}
+                    python3 -m pytest test/test_form.py -v \
+                        --html=report.html \
+                        --self-contained-html \
+                        -p no:warnings || true
+                '''
             }
         }
-        
-        stage('Publish Test Results') {
+
+        stage('Publish Test Report') {
             steps {
-                echo 'Publishing test results...'
+                echo 'Publishing HTML test report...'
                 publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'student-feedback',
+                    reportDir: "${WORKSPACE}",
                     reportFiles: 'report.html',
                     reportName: 'Selenium Test Report'
                 ])
             }
         }
     }
-    
+
     post {
         always {
-            echo 'Cleaning up...'
+            echo 'Pipeline finished. Archiving report...'
+            archiveArtifacts artifacts: 'report.html', allowEmptyArchive: true
         }
         success {
-            echo 'Tests passed successfully!'
+            echo 'All tests passed successfully.'
         }
         failure {
-            echo 'Tests failed!'
+            echo 'Some tests failed. Check the report for details.'
         }
     }
 }
